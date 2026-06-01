@@ -1,0 +1,132 @@
+name: Build TWA APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli@latest
+
+      - name: Create twa-manifest.json
+        run: |
+          cat > twa-manifest.json << 'TWAJSON'
+          {
+            "packageId": "com.qla.amaltracker",
+            "host": "moslem-tracker-30days.netlify.app",
+            "name": "30 Hari Amal Terbaik",
+            "launcherName": "Amal Tracker",
+            "display": "standalone",
+            "themeColor": "#0D3320",
+            "navigationColor": "#0D3320",
+            "navigationColorDark": "#0D3320",
+            "navigationDividerColor": "#0D3320",
+            "navigationDividerColorDark": "#0D3320",
+            "backgroundColor": "#0D3320",
+            "enableNotifications": true,
+            "startUrl": "/",
+            "iconUrl": "https://moslem-tracker-30days.netlify.app/icon-512.png",
+            "maskableIconUrl": "https://moslem-tracker-30days.netlify.app/icon-512.png",
+            "monochromeIconUrl": "https://moslem-tracker-30days.netlify.app/icon-192.png",
+            "splashScreenFadeOutDuration": 300,
+            "signingKey": {
+              "path": "./android.keystore",
+              "alias": "amaltracker"
+            },
+            "appVersionName": "1.0.0",
+            "appVersionCode": 1,
+            "shortcuts": [],
+            "features": {
+              "locationDelegation": {
+                "enabled": true
+              }
+            },
+            "alphaDependencies": {
+              "enabled": false
+            },
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://moslem-tracker-30days.netlify.app/manifest.json",
+            "fallbackType": "customtabs",
+            "orientation": "portrait",
+            "isChromeOSOnly": false,
+            "isMetaQuest": false,
+            "minSdkVersion": 19,
+            "targetSdkVersion": 34
+          }
+          TWAJSON
+
+      - name: Generate keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore android.keystore \
+            -alias amaltracker \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass amaltracker123 \
+            -keypass amaltracker123 \
+            -dname "CN=Amal Tracker, OU=QLA Channel, O=Marc, L=Jakarta, S=DKI Jakarta, C=ID"
+
+      - name: Init Bubblewrap from manifest
+        run: |
+          mkdir twa-build && cd twa-build
+          bubblewrap init \
+            --manifest https://moslem-tracker-30days.netlify.app/manifest.json \
+            --directory . \
+            --skipPwaValidation \
+            --host moslem-tracker-30days.netlify.app \
+            --name "30 Hari Amal Terbaik" \
+            --launcherName "Amal Tracker" \
+            --themeColor "#0D3320" \
+            --backgroundColor "#0D3320" \
+            --startUrl "/" \
+            --iconUrl "https://moslem-tracker-30days.netlify.app/icon-512.png" \
+            --maskableIconUrl "https://moslem-tracker-30days.netlify.app/icon-512.png" \
+            --packageId "com.qla.amaltracker" \
+            --signingKeyPath "../android.keystore" \
+            --signingKeyAlias "amaltracker"
+        env:
+          BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
+
+      - name: Build APK
+        run: |
+          cd twa-build
+          bubblewrap build \
+            --skipPwaValidation \
+            --signingKeyPath "../android.keystore" \
+            --signingKeyAlias "amaltracker" \
+            --signingKeyPassword "amaltracker123" \
+            --signingStorePassword "amaltracker123"
+        env:
+          BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
+
+      - name: Find APK
+        run: find . -name "*.apk" -type f
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AmalTracker-v1.0-APK
+          path: |
+            twa-build/**/*.apk
+            twa-build/**/*.aab
+          retention-days: 90
+          if-no-files-found: warn
