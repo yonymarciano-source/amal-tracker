@@ -95,7 +95,7 @@ self.addEventListener('activate', function(e) {
     Promise.all([
       caches.keys().then(function(keys) {
         return Promise.all(
-          keys.filter(function(k) { return k !== 'amal-v9' && k !== 'amal-notif-sched'; })
+          keys.filter(function(k) { return k !== 'amal-v10' && k !== 'amal-notif-sched'; })
               .map(function(k) { return caches.delete(k); })
         );
       }),
@@ -123,8 +123,8 @@ self.addEventListener('message', function(e) {
   }
 }, true); // true agar override listener atas
 
-var CACHE = 'amal-v9';
-var ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+var CACHE = 'amal-v10';
+var ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png', './sw.js'];
 
 self.addEventListener('install', function(e) {
   e.waitUntil(caches.open(CACHE).then(function(c) { return c.addAll(ASSETS); }));

@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.qla.amaltracker",
+    "sha256_cert_fingerprints": [
+      "DA:B0:B1:88:06:AF:11:72:9B:48:2F:AB:1D:82:F1:D8:0D:2B:71:B1:01:FB:A1:96:C4:87:85:15:E8:DF:92:EB"
+    ]
+  }
+}]
