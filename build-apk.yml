@@ -5,6 +5,13 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
+  BUBBLEWRAP_ANALYTICS: "false"
+  JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,15 +26,48 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+          accept-android-sdk-licenses: true
+
+      - name: Install Android build tools
+        run: sdkmanager "build-tools;34.0.0" "platforms;android-34" "platform-tools"
 
       - name: Install Bubblewrap
         run: npm install -g @bubblewrap/cli@latest
 
+      - name: Pre-configure Bubblewrap (bypass JDK/SDK prompts)
+        run: |
+          mkdir -p $HOME/.bubblewrap
+          cat > $HOME/.bubblewrap/config.json << 'JSON'
+          {
+            "jdkPath": "/usr/lib/jvm/temurin-17-jdk-amd64",
+            "androidSdkPath": "/usr/local/lib/android/sdk"
+          }
+          JSON
+          echo "Bubblewrap config:"
+          cat $HOME/.bubblewrap/config.json
+
+      - name: Generate keystore
+        run: |
+          keytool -genkeypair \
+            -keystore android.keystore \
+            -alias amaltracker \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass amaltracker123 -keypass amaltracker123 \
+            -dname "CN=Amal Tracker, O=QLA Channel, L=Jakarta, C=ID"
+
       - name: Create twa-manifest.json
         run: |
-          cat > twa-manifest.json << 'TWAJSON'
+          mkdir -p twa-build
+          cat > twa-build/twa-manifest.json << 'JSON'
           {
             "packageId": "com.qla.amaltracker",
             "host": "moslem-tracker-30days.netlify.app",
@@ -47,20 +87,16 @@ jobs:
             "monochromeIconUrl": "https://moslem-tracker-30days.netlify.app/icon-192.png",
             "splashScreenFadeOutDuration": 300,
             "signingKey": {
-              "path": "./android.keystore",
+              "path": "../android.keystore",
               "alias": "amaltracker"
             },
+            "signingKeyPassword": "amaltracker123",
+            "signingStorePassword": "amaltracker123",
             "appVersionName": "1.0.0",
             "appVersionCode": 1,
             "shortcuts": [],
-            "features": {
-              "locationDelegation": {
-                "enabled": true
-              }
-            },
-            "alphaDependencies": {
-              "enabled": false
-            },
+            "features": { "locationDelegation": { "enabled": true } },
+            "alphaDependencies": { "enabled": false },
             "generatorApp": "bubblewrap-cli",
             "webManifestUrl": "https://moslem-tracker-30days.netlify.app/manifest.json",
             "fallbackType": "customtabs",
@@ -70,61 +106,26 @@ jobs:
             "minSdkVersion": 19,
             "targetSdkVersion": 34
           }
-          TWAJSON
+          JSON
+          echo "twa-manifest.json created OK"
 
-      - name: Generate keystore
+      - name: Generate Android project
         run: |
-          keytool -genkeypair \
-            -v \
-            -keystore android.keystore \
-            -alias amaltracker \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass amaltracker123 \
-            -keypass amaltracker123 \
-            -dname "CN=Amal Tracker, OU=QLA Channel, O=Marc, L=Jakarta, S=DKI Jakarta, C=ID"
-
-      - name: Init Bubblewrap from manifest
-        run: |
-          mkdir twa-build && cd twa-build
-          bubblewrap init \
-            --manifest https://moslem-tracker-30days.netlify.app/manifest.json \
-            --directory . \
-            --skipPwaValidation \
-            --host moslem-tracker-30days.netlify.app \
-            --name "30 Hari Amal Terbaik" \
-            --launcherName "Amal Tracker" \
-            --themeColor "#0D3320" \
-            --backgroundColor "#0D3320" \
-            --startUrl "/" \
-            --iconUrl "https://moslem-tracker-30days.netlify.app/icon-512.png" \
-            --maskableIconUrl "https://moslem-tracker-30days.netlify.app/icon-512.png" \
-            --packageId "com.qla.amaltracker" \
-            --signingKeyPath "../android.keystore" \
-            --signingKeyAlias "amaltracker"
-        env:
-          BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
+          cd twa-build
+          bubblewrap update --skipPwaValidation
 
       - name: Build APK
         run: |
           cd twa-build
-          bubblewrap build \
-            --skipPwaValidation \
-            --signingKeyPath "../android.keystore" \
-            --signingKeyAlias "amaltracker" \
-            --signingKeyPassword "amaltracker123" \
-            --signingStorePassword "amaltracker123"
-        env:
-          BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
+          bubblewrap build --skipPwaValidation
 
       - name: Find APK
-        run: find . -name "*.apk" -type f
+        run: find . -name "*.apk" -o -name "*.aab" | head -20
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AmalTracker-v1.0-APK
+          name: AmalTracker-APK
           path: |
             twa-build/**/*.apk
             twa-build/**/*.aab
