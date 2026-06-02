@@ -37,63 +37,211 @@ jobs:
             -storepass amaltracker123 -keypass amaltracker123 \
             -dname "CN=Amal Tracker, O=QLA Channel, L=Jakarta, C=ID"
 
-      - name: Build TWA project from scratch
+      - name: Build TWA Android project from scratch
         run: |
-          # Clone TWA template resmi Google
-          git clone --depth 1 https://github.com/GoogleChromeLabs/svgomg-twa.git twa-project
+          # Clone template dengan Gradle modern
+          git clone --depth 1 https://github.com/GoogleChromeLabs/bubblewrap.git bubblewrap-src
           
-          # Update strings.xml - nama app dan host
-          cat > twa-project/app/src/main/res/values/strings.xml << 'XML'
-          <resources>
-              <string name="app_name">30 Hari Amal Terbaik</string>
-              <string name="launcher_name">Amal Tracker</string>
-              <string name="host">moslem-tracker-30days.netlify.app</string>
-              <string name="start_url">/</string>
-              <string name="asset_statements">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://moslem-tracker-30days.netlify.app\"}}]</string>
-          </resources>
-          XML
+          # Pakai contoh TWA project yang ada di bubblewrap
+          # Atau buat project Android dari awal dengan struktur yang benar
+          mkdir -p twa-project/app/src/main/java/com/qla/amaltracker
+          mkdir -p twa-project/app/src/main/res/values
+          mkdir -p twa-project/app/src/main/res/mipmap-hdpi
+          mkdir -p twa-project/app/src/main/res/xml
+          mkdir -p twa-project/gradle/wrapper
 
-          # Update build.gradle - package ID dan versi
-          sed -i 's/applicationId ".*"/applicationId "com.qla.amaltracker"/' twa-project/app/build.gradle
-          sed -i 's/versionCode [0-9]*/versionCode 1/' twa-project/app/build.gradle
-          sed -i 's/versionName ".*"/versionName "1.0.0"/' twa-project/app/build.gradle
-          sed -i 's/minSdk [0-9]*/minSdk 19/' twa-project/app/build.gradle
-          sed -i 's/targetSdk [0-9]*/targetSdk 34/' twa-project/app/build.gradle
-          sed -i 's/compileSdk [0-9]*/compileSdk 34/' twa-project/app/build.gradle
-
-          # Signing config
-          cat >> twa-project/app/build.gradle << 'GRADLE'
-
-          android.signingConfigs {
-              release {
-                  storeFile file("../../app.keystore")
-                  storePassword "amaltracker123"
-                  keyAlias "amaltracker"
-                  keyPassword "amaltracker123"
+          # settings.gradle
+          cat > twa-project/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
               }
           }
-          android.buildTypes.release.signingConfig = android.signingConfigs.release
-          GRADLE
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "AmalTracker"
+          include ':app'
+          EOF
 
-          # Update theme color di colors.xml
-          cat > twa-project/app/src/main/res/values/colors.xml << 'XML'
+          # Root build.gradle
+          cat > twa-project/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.0' apply false
+          }
+          EOF
+
+          # gradle/wrapper/gradle-wrapper.properties
+          cat > twa-project/gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+
+          # Download gradlew
+          cd twa-project
+          curl -s -o gradle/wrapper/gradle-wrapper.jar \
+            https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar
+          
+          # Copy gradlew script
+          curl -s -o gradlew \
+            https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew
+          chmod +x gradlew
+          cd ..
+
+          # app/build.gradle
+          cat > twa-project/app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.qla.amaltracker'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.qla.amaltracker"
+                  minSdk 19
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+
+              signingConfigs {
+                  release {
+                      storeFile file("../../app.keystore")
+                      storePassword "amaltracker123"
+                      keyAlias "amaltracker"
+                      keyPassword "amaltracker123"
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.release
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+          }
+          EOF
+
+          # AndroidManifest.xml
+          cat > twa-project/app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:theme="@android:style/Theme.NoTitleBar">
+                  <activity
+                      android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
+                      android:exported="true">
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.DEFAULT_URL"
+                          android:value="@string/start_url" />
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
+                          android:value="@color/colorPrimary" />
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
+                          android:value="@drawable/splash" />
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
+                          android:value="@color/backgroundColor" />
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION"
+                          android:value="300" />
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
+                          android:value="com.qla.amaltracker.fileprovider" />
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter android:autoVerify="true">
+                          <action android:name="android.intent.action.VIEW"/>
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <category android:name="android.intent.category.BROWSABLE"/>
+                          <data android:scheme="https"
+                              android:host="moslem-tracker-30days.netlify.app"/>
+                      </intent-filter>
+                  </activity>
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="com.qla.amaltracker.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/provider_paths" />
+                  </provider>
+              </application>
+          </manifest>
+          EOF
+
+          # strings.xml
+          cat > twa-project/app/src/main/res/values/strings.xml << 'EOF'
+          <resources>
+              <string name="app_name">30 Hari Amal Terbaik</string>
+              <string name="start_url">https://moslem-tracker-30days.netlify.app/</string>
+          </resources>
+          EOF
+
+          # colors.xml
+          cat > twa-project/app/src/main/res/values/colors.xml << 'EOF'
           <resources>
               <color name="colorPrimary">#0D3320</color>
               <color name="colorPrimaryDark">#0D3320</color>
               <color name="colorAccent">#C9941A</color>
-              <color name="navigationColor">#0D3320</color>
               <color name="backgroundColor">#0D3320</color>
           </resources>
-          XML
+          EOF
 
-      - name: Build APK with Gradle
+          # provider_paths.xml
+          cat > twa-project/app/src/main/res/xml/provider_paths.xml << 'EOF'
+          <paths>
+              <external-path name="external_files" path="."/>
+          </paths>
+          EOF
+
+          # Splash drawable placeholder
+          mkdir -p twa-project/app/src/main/res/drawable
+          cat > twa-project/app/src/main/res/drawable/splash.xml << 'EOF'
+          <shape xmlns:android="http://schemas.android.com/apk/res/android">
+              <solid android:color="#0D3320"/>
+          </shape>
+          EOF
+
+          # Copy icon dari repo
+          cp icon-192.png twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png || true
+
+      - name: Build APK
         run: |
           cd twa-project
-          chmod +x gradlew
-          ./gradlew assembleRelease \
-            -PANDROID_HOME=$ANDROID_SDK_ROOT \
-            --no-daemon \
-            --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Find APK
         run: find twa-project -name "*.apk" | head -10
