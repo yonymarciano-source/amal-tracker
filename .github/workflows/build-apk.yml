@@ -1,4 +1,4 @@
-name: Build TWA APK
+name: Build WebView APK
 
 on:
   push:
@@ -28,26 +28,26 @@ jobs:
       - name: Install Android build tools
         run: sdkmanager "build-tools;34.0.0" "platforms;android-34" "platform-tools"
 
-      - name: Restore keystore from secret
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app.keystore
-          echo "Keystore restored:"
-          keytool -list -v -keystore app.keystore -alias amaltracker -storepass amaltracker123 2>/dev/null | grep "SHA256"
+      - name: Restore keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app.keystore
 
-      - name: Build TWA Android project
+      - name: Build WebView Android project
         run: |
+          mkdir -p twa-project/app/src/main/java/com/qla/amaltracker
           mkdir -p twa-project/app/src/main/res/values
           mkdir -p twa-project/app/src/main/res/drawable
-          mkdir -p twa-project/app/src/main/res/xml
           mkdir -p twa-project/app/src/main/res/mipmap-hdpi
+          mkdir -p twa-project/app/src/main/res/xml
           mkdir -p twa-project/gradle/wrapper
 
+          # gradle.properties
           cat > twa-project/gradle.properties << 'EOF'
           android.useAndroidX=true
           android.enableJetifier=true
           org.gradle.jvmargs=-Xmx2048m
           EOF
 
+          # settings.gradle
           cat > twa-project/settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -67,12 +67,14 @@ jobs:
           include ':app'
           EOF
 
+          # root build.gradle
           cat > twa-project/build.gradle << 'EOF'
           plugins {
               id 'com.android.application' version '8.2.0' apply false
           }
           EOF
 
+          # gradle wrapper
           cat > twa-project/gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -87,6 +89,7 @@ jobs:
             https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew
           chmod +x twa-project/gradlew
 
+          # app/build.gradle
           cat > twa-project/app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
@@ -121,88 +124,178 @@ jobs:
               }
           }
           dependencies {
-              implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'androidx.webkit:webkit:1.8.0'
           }
           EOF
 
+          # AndroidManifest.xml
           cat > twa-project/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET"/>
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
               <application
                   android:allowBackup="true"
                   android:icon="@mipmap/ic_launcher"
                   android:label="@string/app_name"
-                  android:theme="@android:style/Theme.NoTitleBar">
+                  android:usesCleartextTraffic="false"
+                  android:hardwareAccelerated="true"
+                  android:theme="@style/AppTheme">
                   <activity
-                      android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
-                      android:exported="true">
-                      <meta-data android:name="android.support.customtabs.trusted.DEFAULT_URL"
-                          android:value="@string/start_url"/>
-                      <meta-data android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
-                          android:value="@color/colorPrimary"/>
-                      <meta-data android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
-                          android:value="@drawable/splash"/>
-                      <meta-data android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
-                          android:value="@color/backgroundColor"/>
-                      <meta-data android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION"
-                          android:value="300"/>
-                      <meta-data android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
-                          android:value="com.qla.amaltracker.fileprovider"/>
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden"
+                      android:windowSoftInputMode="adjustResize">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/>
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
-                      <intent-filter android:autoVerify="true">
-                          <action android:name="android.intent.action.VIEW"/>
-                          <category android:name="android.intent.category.DEFAULT"/>
-                          <category android:name="android.intent.category.BROWSABLE"/>
-                          <data android:scheme="https"
-                              android:host="moslem-tracker-30days.netlify.app"/>
-                      </intent-filter>
                   </activity>
-                  <provider
-                      android:name="androidx.core.content.FileProvider"
-                      android:authorities="com.qla.amaltracker.fileprovider"
-                      android:exported="false"
-                      android:grantUriPermissions="true">
-                      <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
-                          android:resource="@xml/provider_paths"/>
-                  </provider>
               </application>
           </manifest>
           EOF
 
+          # MainActivity.java
+          cat > twa-project/app/src/main/java/com/qla/amaltracker/MainActivity.java << 'EOF'
+          package com.qla.amaltracker;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.GeolocationPermissions;
+          import android.webkit.PermissionRequest;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.Manifest;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+              private static final int LOCATION_PERMISSION_REQUEST = 1;
+              private static final int NOTIFICATION_PERMISSION_REQUEST = 2;
+              private GeolocationPermissions.Callback geoCallback;
+              private String geoOrigin;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  webView = new WebView(this);
+                  setContentView(webView);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setGeolocationEnabled(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  settings.setAllowFileAccess(true);
+                  settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          String url = request.getUrl().toString();
+                          if (url.startsWith("https://moslem-tracker-30days.netlify.app")) {
+                              return false;
+                          }
+                          return false;
+                      }
+                  });
+
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onGeolocationPermissionsShowPrompt(String origin,
+                              GeolocationPermissions.Callback callback) {
+                          geoOrigin = origin;
+                          geoCallback = callback;
+                          if (ContextCompat.checkSelfPermission(MainActivity.this,
+                                  Manifest.permission.ACCESS_FINE_LOCATION)
+                                  == PackageManager.PERMISSION_GRANTED) {
+                              callback.invoke(origin, true, false);
+                          } else {
+                              ActivityCompat.requestPermissions(MainActivity.this,
+                                      new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                                      LOCATION_PERMISSION_REQUEST);
+                          }
+                      }
+
+                      @Override
+                      public void onPermissionRequest(PermissionRequest request) {
+                          request.grant(request.getResources());
+                      }
+                  });
+
+                  // Request notif permission Android 13+
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                      if (ContextCompat.checkSelfPermission(this,
+                              Manifest.permission.POST_NOTIFICATIONS)
+                              != PackageManager.PERMISSION_GRANTED) {
+                          ActivityCompat.requestPermissions(this,
+                                  new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                                  NOTIFICATION_PERMISSION_REQUEST);
+                      }
+                  }
+
+                  webView.loadUrl("https://moslem-tracker-30days.netlify.app");
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode,
+                      String[] permissions, int[] grantResults) {
+                  if (requestCode == LOCATION_PERMISSION_REQUEST && geoCallback != null) {
+                      boolean granted = grantResults.length > 0
+                              && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+                      geoCallback.invoke(geoOrigin, granted, false);
+                  }
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+          }
+          EOF
+
+          # styles.xml
+          cat > twa-project/app/src/main/res/values/styles.xml << 'EOF'
+          <resources>
+              <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+                  <item name="colorPrimary">#0D3320</item>
+                  <item name="colorPrimaryDark">#0D3320</item>
+                  <item name="colorAccent">#C9941A</item>
+                  <item name="android:windowBackground">#0D3320</item>
+              </style>
+          </resources>
+          EOF
+
+          # strings.xml
           cat > twa-project/app/src/main/res/values/strings.xml << 'EOF'
           <resources>
               <string name="app_name">30 Hari Amal Terbaik</string>
-              <string name="start_url">https://moslem-tracker-30days.netlify.app/</string>
           </resources>
           EOF
 
-          cat > twa-project/app/src/main/res/values/colors.xml << 'EOF'
-          <resources>
-              <color name="colorPrimary">#0D3320</color>
-              <color name="colorPrimaryDark">#0D3320</color>
-              <color name="colorAccent">#C9941A</color>
-              <color name="backgroundColor">#0D3320</color>
-          </resources>
-          EOF
-
+          # splash drawable
           cat > twa-project/app/src/main/res/drawable/splash.xml << 'EOF'
           <shape xmlns:android="http://schemas.android.com/apk/res/android">
               <solid android:color="#0D3320"/>
           </shape>
           EOF
 
-          cat > twa-project/app/src/main/res/xml/provider_paths.xml << 'EOF'
-          <paths>
-              <external-path name="external_files" path="."/>
-          </paths>
-          EOF
-
+          # icon
           cp icon-192.png twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png 2>/dev/null || \
             curl -sL -o twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png \
               https://moslem-tracker-30days.netlify.app/icon-192.png
@@ -220,7 +313,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AmalTracker-APK
+          name: AmalTracker-WebView-APK
           path: twa-project/**/*.apk
           retention-days: 90
           if-no-files-found: warn
