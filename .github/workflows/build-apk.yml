@@ -204,7 +204,7 @@ jobs:
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                           String url = request.getUrl().toString();
-                          if (url.startsWith("https://moslem-tracker-30days.netlify.app")) {
+                          if (url.startsWith("https://yonymarciano-source.github.io/amal-tracker")) {
                               return false;
                           }
                           return false;
@@ -245,7 +245,7 @@ jobs:
                       }
                   }
 
-                  webView.loadUrl("https://moslem-tracker-30days.netlify.app");
+                  webView.loadUrl("https://yonymarciano-source.github.io/amal-tracker");
               }
 
               @Override
@@ -298,7 +298,7 @@ jobs:
           # icon
           cp icon-192.png twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png 2>/dev/null || \
             curl -sL -o twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png \
-              https://moslem-tracker-30days.netlify.app/icon-192.png
+              https://yonymarciano-source.github.io/amal-tracker/icon-192.png
 
       - name: Build APK
         run: |
