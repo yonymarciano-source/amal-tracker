@@ -1108,7 +1108,8 @@ function renderNotifCard() {
   var body   = document.getElementById("notifBody");
   if(!toggle) return;
   toggle.checked = NOTIF_ENABLED;
-  body.style.display = "none"; // jadwal tersembunyi - notif jalan otomatis
+  // Tampilkan body hanya untuk GPS status, sembunyikan list jadwal
+  body.style.display = NOTIF_ENABLED ? "block" : "none";
 
   var list = document.getElementById("notifScheduleList");
   if(!list) return;
@@ -1133,19 +1134,7 @@ function renderNotifCard() {
     prayerRow.appendChild(prayerBtn);
     list.appendChild(prayerRow);
 
-    // List semua jadwal notifikasi
-    var fullSched = buildFullSchedule();
-    fullSched.forEach(function(n, i){
-      var row = document.createElement("div"); row.className = "notif-row";
-      var tw  = document.createElement("div"); tw.className = "notif-time-wrap";
-      var tl  = document.createElement("div"); tl.className = "notif-time-lbl"; tl.textContent = n[2];
-      var tv  = document.createElement("div"); tv.className = "notif-time-val";
-      tv.textContent = pad(n[0]) + ":" + pad(n[1]) + " WIB";
-      tw.appendChild(tl); tw.appendChild(tv);
-      var msg = document.createElement("div"); msg.className = "notif-msg"; msg.textContent = n[3];
-      row.appendChild(tw); row.appendChild(msg);
-      list.appendChild(row);
-    });
+    // Hanya tampilkan GPS status, jadwal disembunyikan (personal touch)
   }
 
   var dot = document.getElementById("notifDot");
@@ -1228,8 +1217,15 @@ async function saveTokenToFirestore(token){
 }
 
 function requestNotifPermission(){
+  // Di Android APK - pakai AlarmManager, skip browser Notification check
   if(!("Notification" in window)){
-    showToast("Browser tidak mendukung notifikasi");
+    if(window.AndroidNotif){
+      fetchPrayerTimes(function(){
+        scheduleNotifs();
+        sendScheduleToSW();
+      });
+      renderNotifCard();
+    }
     return;
   }
   Notification.requestPermission().then(async function(perm){
