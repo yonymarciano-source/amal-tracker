@@ -54,15 +54,19 @@ jobs:
             -keypass amaltracker123 \
             -dname "CN=Amal Tracker, OU=QLA Channel, O=Marc, L=Jakarta, S=DKI Jakarta, C=ID"
 
-      - name: Init Bubblewrap (answer No to JDK prompt)
+      - name: Init Bubblewrap
         run: |
+          # Cari path Java yang terinstall
+          JAVA_PATH=$(dirname $(dirname $(readlink -f $(which java))))
+          echo "Java path: $JAVA_PATH"
+          
           mkdir twa-build && cd twa-build
-          echo "No" | bubblewrap init \
+          
+          # Pipe: No (jangan install JDK) → path Java → path Android SDK
+          printf "No\n${JAVA_PATH}\n${ANDROID_SDK_ROOT}\n" | bubblewrap init \
             --manifest "https://moslem-tracker-30days.netlify.app/manifest.json" \
             --directory . \
             --skipPwaValidation
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
 
       - name: Patch twa-manifest.json
         run: |
@@ -91,10 +95,9 @@ jobs:
 
       - name: Build APK
         run: |
+          JAVA_PATH=$(dirname $(dirname $(readlink -f $(which java))))
           cd twa-build
-          echo "No" | bubblewrap build --skipPwaValidation
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
+          printf "No\n${JAVA_PATH}\n${ANDROID_SDK_ROOT}\n" | bubblewrap build --skipPwaValidation
 
       - name: Find APK files
         run: find . -name "*.apk" -o -name "*.aab" | head -20
