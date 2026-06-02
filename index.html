@@ -1141,10 +1141,7 @@ function renderNotifCard() {
   var txt = document.getElementById("notifStatusTxt");
   if(NOTIF_ENABLED && Notification.permission === "granted"){
     dot.className = "notif-dot";
-    txt.textContent = "Notifikasi aktif · " + buildFullSchedule().length + " pengingat";
-  } else if(NOTIF_ENABLED && Notification.permission === "denied"){
-    dot.className = "notif-dot off";
-    txt.textContent = "Izin ditolak. Aktifkan di Settings HP.";
+    txt.textContent = "Notifikasi aktif · " + buildFullSchedule().length + " pengingat harian";
   } else {
     dot.className = "notif-dot off"; txt.textContent = "Notifikasi nonaktif";
   }
@@ -1337,9 +1334,9 @@ document.addEventListener("visibilitychange", function(){
 
 function initNotif(){ initFirebase();
   renderNotifCard();
-  if(NOTIF_ENABLED && Notification.permission === "granted"){
+  if(NOTIF_ENABLED){
     // Auto-refresh jadwal shalat jika sudah expired
-    if(!isPrayerTimesValid() && NOTIF_ENABLED){
+    if(!isPrayerTimesValid()){
       fetchPrayerTimes(function(ok){
         scheduleNotifs(); sendScheduleToSW();
       });
