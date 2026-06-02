@@ -232,6 +232,24 @@ jobs:
                       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                           return false;
                       }
+
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          super.onPageFinished(view, url);
+                          // Trigger JS schedule setelah page fully loaded
+                          view.evaluateJavascript(
+                              "if(typeof sendScheduleToSW === 'function' && typeof NOTIF_ENABLED !== 'undefined' && NOTIF_ENABLED){ " +
+                              "  if(typeof buildFullSchedule === 'function'){ " +
+                              "    try { " +
+                              "      var sched = buildFullSchedule(); " +
+                              "      if(window.AndroidNotif && sched.length > 0){ " +
+                              "        var arr = sched.map(function(n){ return [n[0],n[1],n[2],n[3]]; }); " +
+                              "        window.AndroidNotif.scheduleNotifs(JSON.stringify(arr)); " +
+                              "      } " +
+                              "    } catch(e){} " +
+                              "  } " +
+                              "}", null);
+                      }
                   });
 
                   webView.setWebChromeClient(new WebChromeClient() {
