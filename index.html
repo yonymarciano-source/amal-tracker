@@ -219,6 +219,15 @@ html,body{height:100%;background:var(--cream);color:var(--text);overflow:hidden;
 .time-btns{display:flex;gap:8px;}
 .btn-cancel{flex:1;padding:11px;background:var(--gray3);color:var(--gray);font-size:13px;font-weight:700;font-family:inherit;border:none;border-radius:var(--r2);cursor:pointer;}
 .btn-ok{flex:1;padding:11px;background:linear-gradient(135deg,var(--g1),var(--g2));color:var(--gold2);font-size:13px;font-weight:700;font-family:inherit;border:none;border-radius:var(--r2);cursor:pointer;}
+
+/* iOS INSTALL BANNER */
+.ios-banner{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:456px;background:linear-gradient(135deg,var(--g1),#1a4a32);border-radius:var(--r);padding:14px 16px;display:none;align-items:center;gap:12px;z-index:150;box-shadow:var(--sh);border:1px solid rgba(201,148,26,.3);}
+.ios-banner.show{display:flex;}
+.ios-banner-ico{font-size:28px;flex-shrink:0;}
+.ios-banner-txt{flex:1;}
+.ios-banner-title{color:var(--gold2);font-size:13px;font-weight:700;}
+.ios-banner-sub{color:rgba(255,255,255,.6);font-size:11px;margin-top:2px;line-height:1.4;}
+.ios-banner-close{color:rgba(255,255,255,.5);font-size:20px;cursor:pointer;padding:4px;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -442,7 +451,7 @@ var GROUPS = [
 
 var ALL_ITEMS = [];
 GROUPS.forEach(function(g){ g.items.forEach(function(it){ ALL_ITEMS.push(it); }); });
-var DOA_UNLOCK_SCORE = 60; // 60 poin total
+var DOA_UNLOCK_SCORE = 60; // 30 poin dalam 1 hari
 
 /* ===== 30-DAY STRUCTURE =====
    Week 0: Day  1- 7  (di 0-6)
@@ -540,8 +549,9 @@ function calcCycleTotals(){
 /* ===== CHECK DOA UNLOCK ===== */
 function checkDoaUnlock(){
   if(DOA_UNLOCKED) return;
-  var total=calcTotalScore();
-  if(total>=DOA_UNLOCK_SCORE){
+  var td=todayWD();
+  var todayScore=calcDayByWD(td.wi,td.di).score;
+  if(todayScore>=DOA_UNLOCK_SCORE){
     DOA_UNLOCKED=true; saveDoa();
     document.getElementById("unlockModal").classList.add("show");
   }
@@ -561,7 +571,8 @@ function goTo(name,btn){
 /* ===== DOA CARD ===== */
 function renderDoaCard(){
   var card=document.getElementById("doaCard");
-  var todayScore=calcTotalScore();
+  var td=todayWD();
+  var todayScore=calcDayByWD(td.wi,td.di).score;
   if(DOA_UNLOCKED){
     card.innerHTML='<div class="doa-unlocked" onclick="openDoa()">'
       +'<div class="doa-header"><div class="doa-icon">&#128214;</div>'
@@ -574,9 +585,9 @@ function renderDoaCard(){
     card.innerHTML='<div class="doa-locked">'
       +'<div class="doa-header"><div class="doa-icon">&#128274;</div>'
       +'<div><div class="doa-title">Do\'a-do\'a dari Al-Qur\'an</div>'
-      +'<div class="doa-sub">Kumpulkan '+DOA_UNLOCK_SCORE+' poin total untuk membuka</div></div></div>'
+      +'<div class="doa-sub">Kumpulkan '+DOA_UNLOCK_SCORE+' poin hari ini untuk membuka</div></div></div>'
       +'<div class="doa-progress-wrap"><div class="doa-progress-fill" style="width:'+pct+'%"></div></div>'
-      +'<div class="doa-progress-lbl"><span>'+todayScore+' poin terkumpul</span><span style="color:rgba(255,255,255,.5)">target '+DOA_UNLOCK_SCORE+' poin total</span></div>'
+      +'<div class="doa-progress-lbl"><span>'+todayScore+' poin hari ini</span><span style="color:rgba(255,255,255,.5)">target '+DOA_UNLOCK_SCORE+' poin/hari</span></div>'
       +'</div>';
   }
 }
@@ -591,13 +602,13 @@ function openDoa(){
   tb.style.cssText="background:#0f2219;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(201,168,76,.25);flex-shrink:0;";
   var sp=document.createElement("span");
   sp.style.cssText="color:#e8c96d;font-family:Lora,serif;font-size:15px;font-weight:700;";
-  sp.textContent="Doa-doa dari Al-Quran";
+  sp.textContent="Do’a-do’a dari Al-Qur’an";
   var cl=document.createElement("button");
   cl.style.cssText="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);color:#e8c96d;font-size:13px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;font-family:inherit;";
   cl.textContent="x Tutup";
   cl.onclick=function(){
     var ifr=ov.querySelector("iframe");
-    if(ifr){ ifr.src="about:blank"; }
+    if(ifr){ifr.src="about:blank";}
     ov.style.display="none";
   };
   tb.appendChild(sp);tb.appendChild(cl);
@@ -970,8 +981,6 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
 // Jadwal statis [jam, menit, label, pesan]
 var STATIC_SCHEDULE = [
   [5,  30, "Dzikir Pagi",       "Sudah Dzikir pagi belum?? ☀️"],
-  [6,  0,  "Syukur Pagi",       "Mulailah hari mu dengan banyak-banyak bersyukur kepada Allah Azza wa Jalla..., karena ingatlah seberat apapun kehidupanmu, masih jauh lebih kecil dibandingkan Rahmat Allah pada mu"],
-  [14, 30, "Prasangka Baik",    "Jangan lupa...Selalu berprasangka baik sama Allah, karena Allah sesuai persangkaan hambanya !"],
   [7,  0,  "Infaq & Sedekah",   "Jangan lupa Infaq dan Sedekah nya ya.... 💰"],
   [9,  0,  "Shalat Dhuha",      "Di dalam tubuh manusia terdapat 360 sendi, dan setiap sendi wajib disedekahi — Yuk Shalat Dhuha 🙏"],
   [11, 0,  "Jaga Lisan",        "Yuk, jaga lisan... hindari Ghibah, perbanyak Dzikir 🤫"],
@@ -1051,13 +1060,13 @@ function showGPSModal(isDenied){
   var msg=isDenied
     ? "<b>Cara mengaktifkan izin lokasi:</b><br>1. Buka <b>Settings HP</b><br>2. Pilih <b>Apps > Chrome</b><br>3. Pilih <b>Permissions > Location</b><br>4. Set ke <b>Allow</b><br>5. Kembali ke app, tap <b>Coba Lagi</b>"
     : "Aktifkan <b>Location/GPS</b> di Settings HP, lalu tap Coba Lagi.";
-  box.innerHTML="<div style='font-size:40px;text-align:center;margin-bottom:12px;'>"+(isDenied?"&#x1F6AB;":"&#x1F4CD;")+"</div>"
-    +"<div style='font-size:16px;font-weight:700;color:#0D3320;text-align:center;margin-bottom:10px;font-family:Lora,serif;'>"
+  box.innerHTML="<div style=\'font-size:40px;text-align:center;margin-bottom:12px;\'>"+(isDenied?"&#x1F6AB;":"&#x1F4CD;")+"</div>"
+    +"<div style=\'font-size:16px;font-weight:700;color:#0D3320;text-align:center;margin-bottom:10px;font-family:Lora,serif;\'>"
     +(isDenied?"Izin Lokasi Ditolak":"GPS Tidak Aktif")+"</div>"
-    +"<div style='font-size:13px;color:#374151;line-height:1.8;margin-bottom:18px;'>"+msg+"</div>"
-    +"<div style='display:flex;gap:8px;'>"
-    +"<button id='gpsNanti' style='flex:1;padding:11px;background:#F3F4F6;color:#6B7280;font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-family:inherit;'>Nanti</button>"
-    +"<button id='gpsCoba' style='flex:1;padding:11px;background:linear-gradient(135deg,#0D3320,#1B5E42);color:#F5D680;font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-family:inherit;'>Coba Lagi</button>"
+    +"<div style=\'font-size:13px;color:#374151;line-height:1.8;margin-bottom:18px;\'>"+msg+"</div>"
+    +"<div style=\'display:flex;gap:8px;\'>"
+    +"<button id=\'gpsNanti\' style=\'flex:1;padding:11px;background:#F3F4F6;color:#6B7280;font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-family:inherit;\'>Nanti</button>"
+    +"<button id=\'gpsCoba\' style=\'flex:1;padding:11px;background:linear-gradient(135deg,#0D3320,#1B5E42);color:#F5D680;font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-family:inherit;\'>Coba Lagi</button>"
     +"</div>";
   ov.appendChild(box); document.body.appendChild(ov);
   document.getElementById("gpsNanti").onclick=function(){ov.remove();};
@@ -1108,8 +1117,7 @@ function renderNotifCard() {
   var body   = document.getElementById("notifBody");
   if(!toggle) return;
   toggle.checked = NOTIF_ENABLED;
-  // Tampilkan body hanya untuk GPS status, sembunyikan list jadwal
-  body.style.display = NOTIF_ENABLED ? "block" : "none";
+  body.style.display = NOTIF_ENABLED ? "block" : "none"; // GPS status visible
 
   var list = document.getElementById("notifScheduleList");
   if(!list) return;
@@ -1134,14 +1142,29 @@ function renderNotifCard() {
     prayerRow.appendChild(prayerBtn);
     list.appendChild(prayerRow);
 
-    // Hanya tampilkan GPS status, jadwal disembunyikan (personal touch)
+    // List semua jadwal notifikasi
+    var fullSched = buildFullSchedule();
+    fullSched.forEach(function(n, i){
+      var row = document.createElement("div"); row.className = "notif-row";
+      var tw  = document.createElement("div"); tw.className = "notif-time-wrap";
+      var tl  = document.createElement("div"); tl.className = "notif-time-lbl"; tl.textContent = n[2];
+      var tv  = document.createElement("div"); tv.className = "notif-time-val";
+      tv.textContent = pad(n[0]) + ":" + pad(n[1]) + " WIB";
+      tw.appendChild(tl); tw.appendChild(tv);
+      var msg = document.createElement("div"); msg.className = "notif-msg"; msg.textContent = n[3];
+      row.appendChild(tw); row.appendChild(msg);
+      list.appendChild(row);
+    });
   }
 
   var dot = document.getElementById("notifDot");
   var txt = document.getElementById("notifStatusTxt");
-  if(NOTIF_ENABLED && Notification.permission === "granted"){
+  if(NOTIF_ENABLED){
     dot.className = "notif-dot";
-    txt.textContent = "Notifikasi aktif · " + buildFullSchedule().length + " pengingat harian";
+    txt.textContent = "Notifikasi aktif · " + buildFullSchedule().length + " pengingat";
+  } else if(NOTIF_ENABLED && Notification.permission === "denied"){
+    dot.className = "notif-dot off";
+    txt.textContent = "Izin ditolak. Aktifkan di Settings HP.";
   } else {
     dot.className = "notif-dot off"; txt.textContent = "Notifikasi nonaktif";
   }
@@ -1154,10 +1177,6 @@ function toggleNotif(on){
     requestNotifPermission();
   } else {
     cancelAllTimers();
-    // Cancel Android alarms juga
-    if(window.AndroidNotif){
-      try{ window.AndroidNotif.cancelNotifs(); }catch(e){}
-    }
     renderNotifCard();
   }
 }
@@ -1214,15 +1233,8 @@ async function saveTokenToFirestore(token){
 }
 
 function requestNotifPermission(){
-  // Di Android APK - pakai AlarmManager, skip browser Notification check
   if(!("Notification" in window)){
-    if(window.AndroidNotif){
-      fetchPrayerTimes(function(){
-        scheduleNotifs();
-        sendScheduleToSW();
-      });
-      renderNotifCard();
-    }
+    showToast("Browser tidak mendukung notifikasi");
     return;
   }
   Notification.requestPermission().then(async function(perm){
@@ -1304,23 +1316,12 @@ function scheduleNotifs(){
 
 /* Send schedule to SW for background support */
 function sendScheduleToSW(){
-  var sched = buildFullSchedule();
-
-  // Kirim ke SW (browser/PWA)
-  if(navigator.serviceWorker && navigator.serviceWorker.controller){
-    navigator.serviceWorker.controller.postMessage({
-      type: "CUSTOM_SCHEDULE",
-      schedule: sched
-    });
-  }
-
-  // Kirim ke Android AlarmManager (APK - reliable background notif)
-  if(window.AndroidNotif){
-    try{
-      var arr = sched.map(function(n){ return [n[0],n[1],n[2],n[3]]; });
-      window.AndroidNotif.scheduleNotifs(JSON.stringify(arr));
-    }catch(e){ console.warn("AndroidNotif:", e); }
-  }
+  if(!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+  var swSchedule = buildFullSchedule().map(function(n){ return [n[0],n[1],n[2],n[3]]; });
+  navigator.serviceWorker.controller.postMessage({
+    type: "CUSTOM_SCHEDULE",
+    schedule: swSchedule
+  });
 }
 
 /* Reschedule when page becomes visible again */
@@ -1334,9 +1335,9 @@ document.addEventListener("visibilitychange", function(){
 
 function initNotif(){ initFirebase();
   renderNotifCard();
-  if(NOTIF_ENABLED){
+  if(NOTIF_ENABLED && Notification.permission === "granted"){
     // Auto-refresh jadwal shalat jika sudah expired
-    if(!isPrayerTimesValid()){
+    if(!isPrayerTimesValid() && NOTIF_ENABLED){
       fetchPrayerTimes(function(ok){
         scheduleNotifs(); sendScheduleToSW();
       });
@@ -1346,10 +1347,32 @@ function initNotif(){ initFirebase();
   }
 }
 
+
+function initIOSBanner(){
+  var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  var isStandalone=window.navigator.standalone===true;
+  var dismissed=localStorage.getItem('ios-banner-dismissed')==='1';
+  if(isIOS&&!isStandalone&&!dismissed){
+    setTimeout(function(){
+      var b=document.getElementById('iosBanner');
+      if(b) b.classList.add('show');
+    },3000);
+  }
+}
 /* ===== INIT ===== */
 initCycle();
 renderHome();
 initNotif();
+initIOSBanner();
 </script>
+
+<div class="ios-banner" id="iosBanner">
+  <div class="ios-banner-ico">&#128242;</div>
+  <div class="ios-banner-txt">
+    <div class="ios-banner-title">Install App di iPhone/iPad</div>
+    <div class="ios-banner-sub">Tap <b style="color:var(--gold2)">Share &#x2197;</b> lalu <b style="color:var(--gold2)">Add to Home Screen</b></div>
+  </div>
+  <div class="ios-banner-close" onclick="document.getElementById('iosBanner').classList.remove('show');localStorage.setItem('ios-banner-dismissed','1')">&#10005;</div>
+</div>
 </body>
 </html>
