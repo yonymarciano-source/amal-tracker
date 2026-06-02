@@ -1142,19 +1142,7 @@ function renderNotifCard() {
     prayerRow.appendChild(prayerBtn);
     list.appendChild(prayerRow);
 
-    // List semua jadwal notifikasi
-    var fullSched = buildFullSchedule();
-    fullSched.forEach(function(n, i){
-      var row = document.createElement("div"); row.className = "notif-row";
-      var tw  = document.createElement("div"); tw.className = "notif-time-wrap";
-      var tl  = document.createElement("div"); tl.className = "notif-time-lbl"; tl.textContent = n[2];
-      var tv  = document.createElement("div"); tv.className = "notif-time-val";
-      tv.textContent = pad(n[0]) + ":" + pad(n[1]) + " WIB";
-      tw.appendChild(tl); tw.appendChild(tv);
-      var msg = document.createElement("div"); msg.className = "notif-msg"; msg.textContent = n[3];
-      row.appendChild(tw); row.appendChild(msg);
-      list.appendChild(row);
-    });
+    // Jadwal tersembunyi — notif jalan otomatis di background (personal touch)
   }
 
   var dot = document.getElementById("notifDot");
