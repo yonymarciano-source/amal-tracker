@@ -41,6 +41,9 @@ jobs:
       - name: Install Bubblewrap
         run: npm install -g @bubblewrap/cli@latest
 
+      - name: Install expect
+        run: sudo apt-get install -y expect
+
       - name: Generate keystore
         run: |
           keytool -genkeypair \
@@ -54,19 +57,26 @@ jobs:
             -keypass amaltracker123 \
             -dname "CN=Amal Tracker, OU=QLA Channel, O=Marc, L=Jakarta, S=DKI Jakarta, C=ID"
 
-      - name: Init Bubblewrap
+      - name: Init Bubblewrap with expect
         run: |
-          # Cari path Java yang terinstall
           JAVA_PATH=$(dirname $(dirname $(readlink -f $(which java))))
-          echo "Java path: $JAVA_PATH"
+          ANDROID_PATH="${ANDROID_SDK_ROOT}"
+          mkdir -p twa-build
+
+          expect << EXPECTSCRIPT
+          set timeout 120
+          spawn sh -c "cd twa-build && bubblewrap init --manifest https://moslem-tracker-30days.netlify.app/manifest.json --directory . --skipPwaValidation"
           
-          mkdir twa-build && cd twa-build
-          
-          # Pipe: No (jangan install JDK) → path Java → path Android SDK
-          printf "No\n${JAVA_PATH}\n${ANDROID_SDK_ROOT}\n" | bubblewrap init \
-            --manifest "https://moslem-tracker-30days.netlify.app/manifest.json" \
-            --directory . \
-            --skipPwaValidation
+          expect {
+            "install the JDK" { send "No\r"; exp_continue }
+            "Path to your existing JDK" { send "${JAVA_PATH}\r"; exp_continue }
+            "Path to the Android SDK" { send "${ANDROID_PATH}\r"; exp_continue }
+            "packageId" { send "com.qla.amaltracker\r"; exp_continue }
+            "app name" { send "30 Hari Amal Terbaik\r"; exp_continue }
+            "launcher name" { send "Amal Tracker\r"; exp_continue }
+            eof { }
+          }
+          EXPECTSCRIPT
 
       - name: Patch twa-manifest.json
         run: |
@@ -90,14 +100,25 @@ jobs:
             m.appVersionName = '1.0.0';
             m.appVersionCode = 1;
             fs.writeFileSync('twa-manifest.json', JSON.stringify(m, null, 2));
-            console.log('Manifest patched OK');
+            console.log('Patched:', JSON.stringify(m.signingKey));
           "
 
-      - name: Build APK
+      - name: Build APK with expect
         run: |
           JAVA_PATH=$(dirname $(dirname $(readlink -f $(which java))))
-          cd twa-build
-          printf "No\n${JAVA_PATH}\n${ANDROID_SDK_ROOT}\n" | bubblewrap build --skipPwaValidation
+          ANDROID_PATH="${ANDROID_SDK_ROOT}"
+
+          expect << EXPECTSCRIPT
+          set timeout 300
+          spawn sh -c "cd twa-build && bubblewrap build --skipPwaValidation"
+
+          expect {
+            "install the JDK" { send "No\r"; exp_continue }
+            "Path to your existing JDK" { send "${JAVA_PATH}\r"; exp_continue }
+            "Path to the Android SDK" { send "${ANDROID_PATH}\r"; exp_continue }
+            eof { }
+          }
+          EXPECTSCRIPT
 
       - name: Find APK files
         run: find . -name "*.apk" -o -name "*.aab" | head -20
