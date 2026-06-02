@@ -7,6 +7,10 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
+  BUBBLEWRAP_ANALYTICS: "false"
+  JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
 jobs:
   build:
@@ -38,8 +42,18 @@ jobs:
 
       - name: Install Bubblewrap
         run: npm install -g @bubblewrap/cli@latest
-        env:
-          BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
+
+      - name: Pre-configure Bubblewrap (bypass JDK/SDK prompts)
+        run: |
+          mkdir -p $HOME/.bubblewrap
+          cat > $HOME/.bubblewrap/config.json << 'JSON'
+          {
+            "jdkPath": "/usr/lib/jvm/temurin-17-jdk-amd64",
+            "androidSdkPath": "/usr/local/lib/android/sdk"
+          }
+          JSON
+          echo "Bubblewrap config:"
+          cat $HOME/.bubblewrap/config.json
 
       - name: Generate keystore
         run: |
@@ -50,7 +64,7 @@ jobs:
             -storepass amaltracker123 -keypass amaltracker123 \
             -dname "CN=Amal Tracker, O=QLA Channel, L=Jakarta, C=ID"
 
-      - name: Create twa-manifest.json manually
+      - name: Create twa-manifest.json
         run: |
           mkdir -p twa-build
           cat > twa-build/twa-manifest.json << 'JSON'
@@ -81,9 +95,7 @@ jobs:
             "appVersionName": "1.0.0",
             "appVersionCode": 1,
             "shortcuts": [],
-            "features": {
-              "locationDelegation": { "enabled": true }
-            },
+            "features": { "locationDelegation": { "enabled": true } },
             "alphaDependencies": { "enabled": false },
             "generatorApp": "bubblewrap-cli",
             "webManifestUrl": "https://moslem-tracker-30days.netlify.app/manifest.json",
@@ -92,34 +104,20 @@ jobs:
             "isChromeOSOnly": false,
             "isMetaQuest": false,
             "minSdkVersion": 19,
-            "targetSdkVersion": 34,
-            "sdkPath": "/usr/local/lib/android/sdk",
-            "jdkPath": "/usr/lib/jvm/temurin-17-jdk-amd64"
+            "targetSdkVersion": 34
           }
           JSON
-          echo "twa-manifest.json created:"
-          cat twa-build/twa-manifest.json
+          echo "twa-manifest.json created OK"
 
-      - name: Generate Android project from manifest
+      - name: Generate Android project
         run: |
           cd twa-build
-          bubblewrap update \
-            --skipPwaValidation \
-            --manifest ./twa-manifest.json
-        env:
-          BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
-          BUBBLEWRAP_ANALYTICS: "false"
+          bubblewrap update --skipPwaValidation
 
       - name: Build APK
         run: |
           cd twa-build
-          bubblewrap build \
-            --skipPwaValidation
-        env:
-          BUBBLEWRAP_SKIP_UPDATE_CHECK: "true"
-          BUBBLEWRAP_ANALYTICS: "false"
-          JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
-          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+          bubblewrap build --skipPwaValidation
 
       - name: Find APK
         run: find . -name "*.apk" -o -name "*.aab" | head -20
