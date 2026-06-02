@@ -411,7 +411,9 @@ var GROUPS = [
     { id:"dzikir-sore", label:"Dzikir Sore",                 pts:1 },
     { id:"quran",       label:"Baca Al-Quran (min. 1 hal.)", pts:1 },
     { id:"infaq",       label:"Infaq / Shadaqoh Harian",     pts:1 },
-    { id:"ortu",        label:"Berbakti kepada Orang Tua",   pts:1 }
+    { id:"ortu",        label:"Berbakti kepada Orang Tua",   pts:1 },
+    { id:"jenazah",     label:"Menyalatkan & Mengantarkan Jenazah", pts:2 },
+    { id:"jenguk",      label:"Menjenguk Orang yang Sakit",   pts:1 }
   ]},
   { id:"g4", label:"Doa di Waktu Spesial", items:[
     { id:"doa-sujud",   label:"Doa saat Sujud dalam Shalat",        pts:1 },
@@ -440,7 +442,7 @@ var GROUPS = [
 
 var ALL_ITEMS = [];
 GROUPS.forEach(function(g){ g.items.forEach(function(it){ ALL_ITEMS.push(it); }); });
-var DOA_UNLOCK_SCORE = 30; // 30 poin dalam 1 hari
+var DOA_UNLOCK_SCORE = 60; // 60 poin total
 
 /* ===== 30-DAY STRUCTURE =====
    Week 0: Day  1- 7  (di 0-6)
@@ -538,9 +540,8 @@ function calcCycleTotals(){
 /* ===== CHECK DOA UNLOCK ===== */
 function checkDoaUnlock(){
   if(DOA_UNLOCKED) return;
-  var td=todayWD();
-  var todayScore=calcDayByWD(td.wi,td.di).score;
-  if(todayScore>=DOA_UNLOCK_SCORE){
+  var total=calcTotalScore();
+  if(total>=DOA_UNLOCK_SCORE){
     DOA_UNLOCKED=true; saveDoa();
     document.getElementById("unlockModal").classList.add("show");
   }
@@ -560,8 +561,7 @@ function goTo(name,btn){
 /* ===== DOA CARD ===== */
 function renderDoaCard(){
   var card=document.getElementById("doaCard");
-  var td=todayWD();
-  var todayScore=calcDayByWD(td.wi,td.di).score;
+  var todayScore=calcTotalScore();
   if(DOA_UNLOCKED){
     card.innerHTML='<div class="doa-unlocked" onclick="openDoa()">'
       +'<div class="doa-header"><div class="doa-icon">&#128214;</div>'
@@ -574,9 +574,9 @@ function renderDoaCard(){
     card.innerHTML='<div class="doa-locked">'
       +'<div class="doa-header"><div class="doa-icon">&#128274;</div>'
       +'<div><div class="doa-title">Do\'a-do\'a dari Al-Qur\'an</div>'
-      +'<div class="doa-sub">Kumpulkan '+DOA_UNLOCK_SCORE+' poin hari ini untuk membuka</div></div></div>'
+      +'<div class="doa-sub">Kumpulkan '+DOA_UNLOCK_SCORE+' poin total untuk membuka</div></div></div>'
       +'<div class="doa-progress-wrap"><div class="doa-progress-fill" style="width:'+pct+'%"></div></div>'
-      +'<div class="doa-progress-lbl"><span>'+todayScore+' poin hari ini</span><span style="color:rgba(255,255,255,.5)">target '+DOA_UNLOCK_SCORE+' poin/hari</span></div>'
+      +'<div class="doa-progress-lbl"><span>'+todayScore+' poin terkumpul</span><span style="color:rgba(255,255,255,.5)">target '+DOA_UNLOCK_SCORE+' poin total</span></div>'
       +'</div>';
   }
 }
@@ -591,11 +591,15 @@ function openDoa(){
   tb.style.cssText="background:#0f2219;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(201,168,76,.25);flex-shrink:0;";
   var sp=document.createElement("span");
   sp.style.cssText="color:#e8c96d;font-family:Lora,serif;font-size:15px;font-weight:700;";
-  sp.textContent="Do’a-do’a dari Al-Qur’an";
+  sp.textContent="Doa-doa dari Al-Quran";
   var cl=document.createElement("button");
   cl.style.cssText="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);color:#e8c96d;font-size:13px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;font-family:inherit;";
   cl.textContent="x Tutup";
-  cl.onclick=function(){ov.style.display="none";};
+  cl.onclick=function(){
+    var ifr=ov.querySelector("iframe");
+    if(ifr){ ifr.src="about:blank"; }
+    ov.style.display="none";
+  };
   tb.appendChild(sp);tb.appendChild(cl);
   var ifr=document.createElement("iframe");
   ifr.src="https://yonymarciano-source.github.io/amal-tracker/doa_quran.html";
@@ -966,6 +970,8 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
 // Jadwal statis [jam, menit, label, pesan]
 var STATIC_SCHEDULE = [
   [5,  30, "Dzikir Pagi",       "Sudah Dzikir pagi belum?? ☀️"],
+  [6,  0,  "Syukur Pagi",       "Mulailah hari mu dengan banyak-banyak bersyukur kepada Allah Azza wa Jalla..., karena ingatlah seberat apapun kehidupanmu, masih jauh lebih kecil dibandingkan Rahmat Allah pada mu"],
+  [14, 30, "Prasangka Baik",    "Jangan lupa...Selalu berprasangka baik sama Allah, karena Allah sesuai persangkaan hambanya !"],
   [7,  0,  "Infaq & Sedekah",   "Jangan lupa Infaq dan Sedekah nya ya.... 💰"],
   [9,  0,  "Shalat Dhuha",      "Di dalam tubuh manusia terdapat 360 sendi, dan setiap sendi wajib disedekahi — Yuk Shalat Dhuha 🙏"],
   [11, 0,  "Jaga Lisan",        "Yuk, jaga lisan... hindari Ghibah, perbanyak Dzikir 🤫"],
@@ -1045,7 +1051,7 @@ function showGPSModal(isDenied){
   var msg=isDenied
     ? "<b>Cara mengaktifkan izin lokasi:</b><br>1. Buka <b>Settings HP</b><br>2. Pilih <b>Apps > Chrome</b><br>3. Pilih <b>Permissions > Location</b><br>4. Set ke <b>Allow</b><br>5. Kembali ke app, tap <b>Coba Lagi</b>"
     : "Aktifkan <b>Location/GPS</b> di Settings HP, lalu tap Coba Lagi.";
-  box.innerHTML="<div style='font-size:40px;text-align:center;margin-bottom:12px;'>"+( isDenied?"&#x1F6AB;":"&#x1F4CD;")+"</div>"
+  box.innerHTML="<div style='font-size:40px;text-align:center;margin-bottom:12px;'>"+(isDenied?"&#x1F6AB;":"&#x1F4CD;")+"</div>"
     +"<div style='font-size:16px;font-weight:700;color:#0D3320;text-align:center;margin-bottom:10px;font-family:Lora,serif;'>"
     +(isDenied?"Izin Lokasi Ditolak":"GPS Tidak Aktif")+"</div>"
     +"<div style='font-size:13px;color:#374151;line-height:1.8;margin-bottom:18px;'>"+msg+"</div>"
@@ -1056,6 +1062,7 @@ function showGPSModal(isDenied){
   ov.appendChild(box); document.body.appendChild(ov);
   document.getElementById("gpsNanti").onclick=function(){ov.remove();};
   document.getElementById("gpsCoba").onclick=function(){ov.remove();GPS_DENIED=false;localStorage.removeItem("aml-gps-denied");fetchPrayerTimes(null);};
+}
 }
 
 /* Cek apakah jadwal shalat masih valid untuk hari ini */
@@ -1102,7 +1109,7 @@ function renderNotifCard() {
   var body   = document.getElementById("notifBody");
   if(!toggle) return;
   toggle.checked = NOTIF_ENABLED;
-  body.style.display = NOTIF_ENABLED ? "block" : "none";
+  body.style.display = "none"; // jadwal tersembunyi - notif jalan otomatis
 
   var list = document.getElementById("notifScheduleList");
   if(!list) return;
@@ -1115,15 +1122,13 @@ function renderNotifCard() {
     var prayerInfo = document.createElement("div");
     prayerInfo.style.cssText="font-size:10px;color:var(--g2);line-height:1.4;";
     if(isPrayerTimesValid()){
-      prayerInfo.innerHTML="&#x1F4CD; Jadwal shalat aktif (GPS)<br><span style='color:var(--gray)'>Subuh "+pad(Math.floor(PRAYER_TIMES.subuh/60))+":"+pad(PRAYER_TIMES.subuh%60)+" · Dzuhur "+pad(Math.floor(PRAYER_TIMES.dzuhur/60))+":"+pad(PRAYER_TIMES.dzuhur%60)+" · Maghrib "+pad(Math.floor(PRAYER_TIMES.maghrib/60))+":"+pad(PRAYER_TIMES.maghrib%60)+"</span>";
-    } else if(GPS_DENIED){
-      prayerInfo.innerHTML="&#x1F6AB; Izin lokasi ditolak<br><span style='color:#DC2626'>Tap <b>Aktifkan GPS</b> untuk notif shalat</span>";
+      prayerInfo.innerHTML="📍 Jadwal shalat aktif (lokasi GPS)<br><span style='color:var(--gray)'>Subuh "+pad(Math.floor(PRAYER_TIMES.subuh/60))+":"+pad(PRAYER_TIMES.subuh%60)+" · Dzuhur "+pad(Math.floor(PRAYER_TIMES.dzuhur/60))+":"+pad(PRAYER_TIMES.dzuhur%60)+" · Maghrib "+pad(Math.floor(PRAYER_TIMES.maghrib/60))+":"+pad(PRAYER_TIMES.maghrib%60)+"</span>";
     } else {
-      prayerInfo.innerHTML="&#x1F4CD; Jadwal shalat belum diambil<br><span style='color:var(--gray)'>Tap <b>Ambil</b> untuk notif H-10 & H+5 shalat</span>";
+      prayerInfo.innerHTML="📍 Jadwal shalat belum dimuat<br><span style='color:var(--gray)'>Aktifkan untuk notif H-10 & H+5 setiap shalat</span>";
     }
     var prayerBtn = document.createElement("button");
     prayerBtn.style.cssText="background:var(--g2);color:#fff;font-size:10px;font-weight:700;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;margin-left:8px;";
-    prayerBtn.textContent = isPrayerTimesValid() ? "Update" : (GPS_DENIED ? "Aktifkan GPS" : "Ambil");
+    prayerBtn.textContent = isPrayerTimesValid() ? "Update" : "Ambil";
     prayerBtn.onclick = function(){ fetchPrayerTimes(null); };
     prayerRow.appendChild(prayerInfo);
     prayerRow.appendChild(prayerBtn);
@@ -1164,6 +1169,10 @@ function toggleNotif(on){
     requestNotifPermission();
   } else {
     cancelAllTimers();
+    // Cancel Android alarms juga
+    if(window.AndroidNotif){
+      try{ window.AndroidNotif.cancelNotifs(); }catch(e){}
+    }
     renderNotifCard();
   }
 }
@@ -1303,12 +1312,23 @@ function scheduleNotifs(){
 
 /* Send schedule to SW for background support */
 function sendScheduleToSW(){
-  if(!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
-  var swSchedule = buildFullSchedule().map(function(n){ return [n[0],n[1],n[2],n[3]]; });
-  navigator.serviceWorker.controller.postMessage({
-    type: "CUSTOM_SCHEDULE",
-    schedule: swSchedule
-  });
+  var sched = buildFullSchedule();
+
+  // Kirim ke SW (browser/PWA)
+  if(navigator.serviceWorker && navigator.serviceWorker.controller){
+    navigator.serviceWorker.controller.postMessage({
+      type: "CUSTOM_SCHEDULE",
+      schedule: sched
+    });
+  }
+
+  // Kirim ke Android AlarmManager (APK - reliable background notif)
+  if(window.AndroidNotif){
+    try{
+      var arr = sched.map(function(n){ return [n[0],n[1],n[2],n[3]]; });
+      window.AndroidNotif.scheduleNotifs(JSON.stringify(arr));
+    }catch(e){ console.warn("AndroidNotif:", e); }
+  }
 }
 
 /* Reschedule when page becomes visible again */
