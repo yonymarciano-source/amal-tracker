@@ -28,14 +28,11 @@ jobs:
       - name: Install Android build tools
         run: sdkmanager "build-tools;34.0.0" "platforms;android-34" "platform-tools"
 
-      - name: Generate keystore
+      - name: Restore keystore from secret
         run: |
-          keytool -genkeypair \
-            -keystore app.keystore \
-            -alias amaltracker \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass amaltracker123 -keypass amaltracker123 \
-            -dname "CN=Amal Tracker, O=QLA Channel, L=Jakarta, C=ID"
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app.keystore
+          echo "Keystore restored:"
+          keytool -list -v -keystore app.keystore -alias amaltracker -storepass amaltracker123 2>/dev/null | grep "SHA256"
 
       - name: Build TWA Android project
         run: |
@@ -45,14 +42,12 @@ jobs:
           mkdir -p twa-project/app/src/main/res/mipmap-hdpi
           mkdir -p twa-project/gradle/wrapper
 
-          # ── gradle.properties ──────────────────────────────────────
           cat > twa-project/gradle.properties << 'EOF'
           android.useAndroidX=true
           android.enableJetifier=true
           org.gradle.jvmargs=-Xmx2048m
           EOF
 
-          # ── settings.gradle ────────────────────────────────────────
           cat > twa-project/settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -72,14 +67,12 @@ jobs:
           include ':app'
           EOF
 
-          # ── root build.gradle ──────────────────────────────────────
           cat > twa-project/build.gradle << 'EOF'
           plugins {
               id 'com.android.application' version '8.2.0' apply false
           }
           EOF
 
-          # ── gradle wrapper ─────────────────────────────────────────
           cat > twa-project/gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -94,7 +87,6 @@ jobs:
             https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew
           chmod +x twa-project/gradlew
 
-          # ── app/build.gradle ───────────────────────────────────────
           cat > twa-project/app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
@@ -133,7 +125,6 @@ jobs:
           }
           EOF
 
-          # ── AndroidManifest.xml ────────────────────────────────────
           cat > twa-project/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -184,7 +175,6 @@ jobs:
           </manifest>
           EOF
 
-          # ── strings.xml ────────────────────────────────────────────
           cat > twa-project/app/src/main/res/values/strings.xml << 'EOF'
           <resources>
               <string name="app_name">30 Hari Amal Terbaik</string>
@@ -192,7 +182,6 @@ jobs:
           </resources>
           EOF
 
-          # ── colors.xml ─────────────────────────────────────────────
           cat > twa-project/app/src/main/res/values/colors.xml << 'EOF'
           <resources>
               <color name="colorPrimary">#0D3320</color>
@@ -202,21 +191,18 @@ jobs:
           </resources>
           EOF
 
-          # ── splash drawable ────────────────────────────────────────
           cat > twa-project/app/src/main/res/drawable/splash.xml << 'EOF'
           <shape xmlns:android="http://schemas.android.com/apk/res/android">
               <solid android:color="#0D3320"/>
           </shape>
           EOF
 
-          # ── provider_paths.xml ─────────────────────────────────────
           cat > twa-project/app/src/main/res/xml/provider_paths.xml << 'EOF'
           <paths>
               <external-path name="external_files" path="."/>
           </paths>
           EOF
 
-          # ── icon ───────────────────────────────────────────────────
           cp icon-192.png twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png 2>/dev/null || \
             curl -sL -o twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png \
               https://moslem-tracker-30days.netlify.app/icon-192.png
