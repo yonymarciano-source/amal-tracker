@@ -40,14 +40,12 @@ jobs:
           mkdir -p twa-project/app/src/main/res/xml
           mkdir -p twa-project/gradle/wrapper
 
-          # gradle.properties
           cat > twa-project/gradle.properties << 'EOF'
           android.useAndroidX=true
           android.enableJetifier=true
           org.gradle.jvmargs=-Xmx2048m
           EOF
 
-          # settings.gradle
           cat > twa-project/settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -67,14 +65,12 @@ jobs:
           include ':app'
           EOF
 
-          # root build.gradle
           cat > twa-project/build.gradle << 'EOF'
           plugins {
               id 'com.android.application' version '8.2.0' apply false
           }
           EOF
 
-          # gradle wrapper
           cat > twa-project/gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -89,7 +85,6 @@ jobs:
             https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew
           chmod +x twa-project/gradlew
 
-          # app/build.gradle
           cat > twa-project/app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
@@ -101,8 +96,8 @@ jobs:
                   applicationId "com.qla.amaltracker"
                   minSdk 21
                   targetSdk 34
-                  versionCode 1
-                  versionName "1.0.0"
+                  versionCode 2
+                  versionName "1.1.0"
               }
               signingConfigs {
                   release {
@@ -129,7 +124,7 @@ jobs:
           }
           EOF
 
-          # AndroidManifest.xml
+          # AndroidManifest.xml - tambah RECEIVE_BOOT_COMPLETED dan SCHEDULE_EXACT_ALARM
           cat > twa-project/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -137,11 +132,14 @@ jobs:
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
               <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+              <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+              <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+              <uses-permission android:name="android.permission.WAKE_LOCK"/>
               <application
                   android:allowBackup="true"
                   android:icon="@mipmap/ic_launcher"
                   android:label="@string/app_name"
-                  android:usesCleartextTraffic="false"
                   android:hardwareAccelerated="true"
                   android:theme="@style/AppTheme">
                   <activity
@@ -154,17 +152,38 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
+                  <!-- BroadcastReceiver untuk terima alarm -->
+                  <receiver
+                      android:name=".NotifReceiver"
+                      android:exported="false"/>
+                  <!-- BroadcastReceiver untuk reschedule setelah reboot -->
+                  <receiver
+                      android:name=".BootReceiver"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                      </intent-filter>
+                  </receiver>
               </application>
           </manifest>
           EOF
 
-          # MainActivity.java
+          # MainActivity.java - setup AlarmManager dari JS Interface
           cat > twa-project/app/src/main/java/com/qla/amaltracker/MainActivity.java << 'EOF'
           package com.qla.amaltracker;
 
           import android.app.Activity;
+          import android.app.AlarmManager;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.os.Build;
           import android.os.Bundle;
           import android.webkit.GeolocationPermissions;
+          import android.webkit.JavascriptInterface;
           import android.webkit.PermissionRequest;
           import android.webkit.WebChromeClient;
           import android.webkit.WebResourceRequest;
@@ -173,40 +192,44 @@ jobs:
           import android.webkit.WebViewClient;
           import android.Manifest;
           import android.content.pm.PackageManager;
-          import android.os.Build;
           import androidx.core.app.ActivityCompat;
           import androidx.core.content.ContextCompat;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+          import java.util.Calendar;
 
           public class MainActivity extends Activity {
               private WebView webView;
-              private static final int LOCATION_PERMISSION_REQUEST = 1;
-              private static final int NOTIFICATION_PERMISSION_REQUEST = 2;
+              private static final int LOC_REQ = 1;
+              private static final int NOTIF_REQ = 2;
               private GeolocationPermissions.Callback geoCallback;
               private String geoOrigin;
+              public static final String CHANNEL_ID = "amal_tracker_notif";
+              public static final String PREFS = "amal_notif_prefs";
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+
+                  createNotifChannel();
+
                   webView = new WebView(this);
                   setContentView(webView);
 
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setDatabaseEnabled(true);
-                  settings.setGeolocationEnabled(true);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
-                  settings.setAllowFileAccess(true);
-                  settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setGeolocationEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  s.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+                  // JS Interface untuk schedule notif dari JavaScript
+                  webView.addJavascriptInterface(new NotifBridge(this), "AndroidNotif");
 
                   webView.setWebViewClient(new WebViewClient() {
                       @Override
-                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                          String url = request.getUrl().toString();
-                          if (url.startsWith("https://yonymarciano-source.github.io/amal-tracker")) {
-                              return false;
-                          }
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                           return false;
                       }
                   });
@@ -223,8 +246,7 @@ jobs:
                               callback.invoke(origin, true, false);
                           } else {
                               ActivityCompat.requestPermissions(MainActivity.this,
-                                      new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                                      LOCATION_PERMISSION_REQUEST);
+                                      new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOC_REQ);
                           }
                       }
 
@@ -240,31 +262,211 @@ jobs:
                               Manifest.permission.POST_NOTIFICATIONS)
                               != PackageManager.PERMISSION_GRANTED) {
                           ActivityCompat.requestPermissions(this,
-                                  new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                                  NOTIFICATION_PERMISSION_REQUEST);
+                                  new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIF_REQ);
                       }
                   }
 
-                  webView.loadUrl("https://yonymarciano-source.github.io/amal-tracker");
+                  webView.loadUrl("https://yonymarciano-source.github.io/amal-tracker/");
+              }
+
+              private void createNotifChannel() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      NotificationChannel ch = new NotificationChannel(
+                              CHANNEL_ID, "Pengingat Ibadah",
+                              NotificationManager.IMPORTANCE_HIGH);
+                      ch.setDescription("Notifikasi pengingat ibadah harian");
+                      ch.enableVibration(true);
+                      ch.setShowBadge(true);
+                      NotificationManager nm = getSystemService(NotificationManager.class);
+                      nm.createNotificationChannel(ch);
+                  }
               }
 
               @Override
-              public void onRequestPermissionsResult(int requestCode,
-                      String[] permissions, int[] grantResults) {
-                  if (requestCode == LOCATION_PERMISSION_REQUEST && geoCallback != null) {
-                      boolean granted = grantResults.length > 0
-                              && grantResults[0] == PackageManager.PERMISSION_GRANTED;
-                      geoCallback.invoke(geoOrigin, granted, false);
+              public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
+                  if (req == LOC_REQ && geoCallback != null) {
+                      boolean ok = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+                      geoCallback.invoke(geoOrigin, ok, false);
                   }
               }
 
               @Override
               public void onBackPressed() {
-                  if (webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
+                  if (webView.canGoBack()) webView.goBack();
+                  else super.onBackPressed();
+              }
+
+              // JS Interface - dipanggil dari JavaScript
+              public class NotifBridge {
+                  private Context ctx;
+                  NotifBridge(Context c) { ctx = c; }
+
+                  @JavascriptInterface
+                  public void scheduleNotifs(String jsonSchedule) {
+                      try {
+                          // Simpan schedule ke SharedPreferences
+                          SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                          prefs.edit().putString("schedule", jsonSchedule).apply();
+
+                          // Cancel semua alarm lama
+                          cancelAllAlarms(ctx, jsonSchedule);
+
+                          // Schedule alarm baru
+                          JSONArray arr = new JSONArray(jsonSchedule);
+                          AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+
+                          for (int i = 0; i < arr.length(); i++) {
+                              JSONArray item = arr.getJSONArray(i);
+                              int hour = item.getInt(0);
+                              int min  = item.getInt(1);
+                              String title = item.getString(2);
+                              String body  = item.getString(3);
+
+                              Calendar cal = Calendar.getInstance();
+                              cal.set(Calendar.HOUR_OF_DAY, hour);
+                              cal.set(Calendar.MINUTE, min);
+                              cal.set(Calendar.SECOND, 0);
+                              cal.set(Calendar.MILLISECOND, 0);
+
+                              // Kalau sudah lewat hari ini, schedule besok
+                              if (cal.getTimeInMillis() <= System.currentTimeMillis()) {
+                                  cal.add(Calendar.DAY_OF_YEAR, 1);
+                              }
+
+                              Intent intent = new Intent(ctx, NotifReceiver.class);
+                              intent.putExtra("title", title);
+                              intent.putExtra("body", body);
+                              intent.putExtra("id", i);
+
+                              PendingIntent pi = PendingIntent.getBroadcast(ctx, i, intent,
+                                      PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+                              // Repeating harian
+                              am.setRepeating(AlarmManager.RTC_WAKEUP,
+                                      cal.getTimeInMillis(),
+                                      AlarmManager.INTERVAL_DAY,
+                                      pi);
+                          }
+                      } catch (Exception e) {
+                          e.printStackTrace();
+                      }
                   }
+
+                  @JavascriptInterface
+                  public void cancelNotifs() {
+                      SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                      String saved = prefs.getString("schedule", "[]");
+                      cancelAllAlarms(ctx, saved);
+                      prefs.edit().remove("schedule").apply();
+                  }
+              }
+
+              public static void cancelAllAlarms(Context ctx, String jsonSchedule) {
+                  try {
+                      AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+                      JSONArray arr = new JSONArray(jsonSchedule);
+                      for (int i = 0; i < arr.length(); i++) {
+                          Intent intent = new Intent(ctx, NotifReceiver.class);
+                          PendingIntent pi = PendingIntent.getBroadcast(ctx, i, intent,
+                                  PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+                          if (pi != null) am.cancel(pi);
+                      }
+                  } catch (Exception e) { e.printStackTrace(); }
+              }
+          }
+          EOF
+
+          # NotifReceiver.java - tampilkan notifikasi
+          cat > twa-project/app/src/main/java/com/qla/amaltracker/NotifReceiver.java << 'EOF'
+          package com.qla.amaltracker;
+
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import androidx.core.app.NotificationCompat;
+
+          public class NotifReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context ctx, Intent intent) {
+                  String title = intent.getStringExtra("title");
+                  String body  = intent.getStringExtra("body");
+                  int id       = intent.getIntExtra("id", 0);
+
+                  Intent openIntent = new Intent(ctx, MainActivity.class);
+                  openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                  PendingIntent pi = PendingIntent.getActivity(ctx, id, openIntent,
+                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+                  NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, MainActivity.CHANNEL_ID)
+                          .setSmallIcon(android.R.drawable.ic_dialog_info)
+                          .setContentTitle(title)
+                          .setContentText(body)
+                          .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                          .setPriority(NotificationCompat.PRIORITY_HIGH)
+                          .setAutoCancel(true)  // hilang setelah di-tap
+                          .setOngoing(false)    // bisa di-swipe clear
+                          .setContentIntent(pi)
+                          .setVibrate(new long[]{0, 300, 200, 300});
+
+                  NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+                  nm.notify(id, builder.build());
+              }
+          }
+          EOF
+
+          # BootReceiver.java - reschedule setelah HP restart
+          cat > twa-project/app/src/main/java/com/qla/amaltracker/BootReceiver.java << 'EOF'
+          package com.qla.amaltracker;
+
+          import android.app.AlarmManager;
+          import android.app.PendingIntent;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import org.json.JSONArray;
+          import java.util.Calendar;
+
+          public class BootReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context ctx, Intent intent) {
+                  if (!Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) return;
+                  SharedPreferences prefs = ctx.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE);
+                  String saved = prefs.getString("schedule", null);
+                  if (saved == null) return;
+
+                  try {
+                      JSONArray arr = new JSONArray(saved);
+                      AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+
+                      for (int i = 0; i < arr.length(); i++) {
+                          JSONArray item = arr.getJSONArray(i);
+                          int hour = item.getInt(0);
+                          int min  = item.getInt(1);
+                          String title = item.getString(2);
+                          String body  = item.getString(3);
+
+                          Calendar cal = Calendar.getInstance();
+                          cal.set(Calendar.HOUR_OF_DAY, hour);
+                          cal.set(Calendar.MINUTE, min);
+                          cal.set(Calendar.SECOND, 0);
+                          if (cal.getTimeInMillis() <= System.currentTimeMillis()) {
+                              cal.add(Calendar.DAY_OF_YEAR, 1);
+                          }
+
+                          Intent ni = new Intent(ctx, NotifReceiver.class);
+                          ni.putExtra("title", title);
+                          ni.putExtra("body", body);
+                          ni.putExtra("id", i);
+
+                          PendingIntent pi = PendingIntent.getBroadcast(ctx, i, ni,
+                                  PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                          am.setRepeating(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(),
+                                  AlarmManager.INTERVAL_DAY, pi);
+                      }
+                  } catch (Exception e) { e.printStackTrace(); }
               }
           }
           EOF
@@ -281,21 +483,22 @@ jobs:
           </resources>
           EOF
 
-          # strings.xml
           cat > twa-project/app/src/main/res/values/strings.xml << 'EOF'
           <resources>
               <string name="app_name">30 Hari Amal Terbaik</string>
           </resources>
           EOF
 
-          # splash drawable
           cat > twa-project/app/src/main/res/drawable/splash.xml << 'EOF'
           <shape xmlns:android="http://schemas.android.com/apk/res/android">
               <solid android:color="#0D3320"/>
           </shape>
           EOF
 
-          # icon
+          cat > twa-project/app/src/main/res/xml/provider_paths.xml << 'EOF'
+          <paths><external-path name="external_files" path="."/></paths>
+          EOF
+
           cp icon-192.png twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png 2>/dev/null || \
             curl -sL -o twa-project/app/src/main/res/mipmap-hdpi/ic_launcher.png \
               https://yonymarciano-source.github.io/amal-tracker/icon-192.png
@@ -313,7 +516,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AmalTracker-WebView-APK
+          name: AmalTracker-v1.1-APK
           path: twa-project/**/*.apk
           retention-days: 90
           if-no-files-found: warn
