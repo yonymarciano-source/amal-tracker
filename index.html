@@ -572,7 +572,7 @@ function goTo(name,btn){
 function renderDoaCard(){
   var card=document.getElementById("doaCard");
   var td=todayWD();
-  var todayScore=calcDayByWD(td.wi,td.di).score;
+  var todayScore=calcTotalScore();
   if(DOA_UNLOCKED){
     card.innerHTML='<div class="doa-unlocked" onclick="openDoa()">'
       +'<div class="doa-header"><div class="doa-icon">&#128214;</div>'
@@ -585,9 +585,9 @@ function renderDoaCard(){
     card.innerHTML='<div class="doa-locked">'
       +'<div class="doa-header"><div class="doa-icon">&#128274;</div>'
       +'<div><div class="doa-title">Do\'a-do\'a dari Al-Qur\'an</div>'
-      +'<div class="doa-sub">Kumpulkan '+DOA_UNLOCK_SCORE+' poin hari ini untuk membuka</div></div></div>'
+      +'<div class="doa-sub">Kumpulkan '+DOA_UNLOCK_SCORE+' poin total untuk membuka</div></div></div>'
       +'<div class="doa-progress-wrap"><div class="doa-progress-fill" style="width:'+pct+'%"></div></div>'
-      +'<div class="doa-progress-lbl"><span>'+todayScore+' poin hari ini</span><span style="color:rgba(255,255,255,.5)">target '+DOA_UNLOCK_SCORE+' poin/hari</span></div>'
+      +'<div class="doa-progress-lbl"><span>'+todayScore+' poin terkumpul</span><span style="color:rgba(255,255,255,.5)">target '+DOA_UNLOCK_SCORE+' poin total</span></div>'
       +'</div>';
   }
 }
