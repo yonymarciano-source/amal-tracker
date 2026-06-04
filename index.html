@@ -384,7 +384,7 @@ html,body{height:100%;background:var(--cream);color:var(--text);overflow:hidden;
   <div class="unlock-modal">
     <div class="unlock-icon">&#128214;</div>
     <div class="unlock-title">Fitur Terbuka!</div>
-    <div class="unlock-body">Masya Allah! Skor kamu hari ini sudah mencapai <b style="color:var(--gold2)">30 poin</b>.<br><br>Fitur <b style="color:var(--gold2)">Do&#39;a-do&#39;a dari Al-Qur&#39;an</b> kini terbuka dan bisa diakses selamanya.</div>
+    <div class="unlock-body">Masya Allah! Total skor kamu sudah mencapai <b style="color:var(--gold2)">60 poin</b>.<br><br>Fitur <b style="color:var(--gold2)">Do&#39;a-do&#39;a dari Al-Qur&#39;an</b> kini terbuka dan bisa diakses selamanya.</div>
     <button class="btn-unlock" onclick="closeUnlockModal()">Buka Sekarang &#8594;</button>
   </div>
 </div>
@@ -549,8 +549,7 @@ function calcCycleTotals(){
 /* ===== CHECK DOA UNLOCK ===== */
 function checkDoaUnlock(){
   if(DOA_UNLOCKED) return;
-  var td=todayWD();
-  var todayScore=calcDayByWD(td.wi,td.di).score;
+  var todayScore=calcTotalScore();
   if(todayScore>=DOA_UNLOCK_SCORE){
     DOA_UNLOCKED=true; saveDoa();
     document.getElementById("unlockModal").classList.add("show");
